@@ -42,9 +42,17 @@ export function modelForTier(tier: ModelTier, providerId: string): string {
 }
 
 /**
- * Routes a generation to the active provider. Throws on provider failure —
- * agent runs surface the error instead of silently degrading.
+ * Routes a generation to the active provider. Transient provider failures
+ * (429/5xx) are retried with exponential backoff; non-transient errors surface
+ * to the agent run instead of silently degrading.
  */
+const RETRYABLE = (err: unknown): boolean => {
+  if (!(err instanceof Error)) return false;
+  // Our provider adapters prefix errors with "<Provider> <status>: ..."
+  const m = err.message.match(/\b(429|5\d\d)\b/);
+  return !!m;
+};
+
 export async function generate(opts: GenerateOptions & { tier?: ModelTier }): Promise<GenerateResult> {
   const providerId = activeProviderId();
   const provider = PROVIDERS[providerId] ?? mockProvider;
@@ -57,12 +65,26 @@ export async function generate(opts: GenerateOptions & { tier?: ModelTier }): Pr
     maxTokens: opts.maxTokens,
     temperature: opts.temperature,
   };
-  const out = await provider.generate(args);
-  return {
-    text: out.text,
-    tokensIn: out.tokensIn > 0 ? out.tokensIn : estimateTokens(opts.system + opts.prompt),
-    tokensOut: out.tokensOut > 0 ? out.tokensOut : estimateTokens(out.text),
-    model,
-    provider: providerId,
-  };
+
+  const maxAttempts = 3;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const out = await provider.generate(args);
+      return {
+        text: out.text,
+        tokensIn: out.tokensIn > 0 ? out.tokensIn : estimateTokens(opts.system + opts.prompt),
+        tokensOut: out.tokensOut > 0 ? out.tokensOut : estimateTokens(out.text),
+        model,
+        provider: providerId,
+      };
+    } catch (err) {
+      lastError = err;
+      if (attempt === maxAttempts || !RETRYABLE(err)) break;
+      const backoffMs = 1500 * 2 ** (attempt - 1); // 1.5s, 3s
+      console.warn(`[ai-router] ${providerId} attempt ${attempt} failed (${err instanceof Error ? err.message.slice(0, 120) : err}); retrying in ${backoffMs}ms`);
+      await new Promise((r) => setTimeout(r, backoffMs));
+    }
+  }
+  throw lastError;
 }

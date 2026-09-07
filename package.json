@@ -10,7 +10,8 @@
     "setup": "prisma db push && tsx prisma/seed.ts",
     "seed": "tsx prisma/seed.ts",
     "worker": "tsx worker.ts",
-    "smoke": "tsx scripts/smoke-ai.ts",
+    "smoke": "node --env-file=.env --import tsx scripts/smoke-ai.ts",
+    "db:check": "node --env-file=.env --import tsx scripts/db-check.ts",
     "test": "node --import tsx --test tests/plan-limits.test.ts tests/ai-json.test.ts tests/lead-score.test.ts tests/rate-limit.test.ts tests/referrals.test.ts tests/pricing-config.test.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
