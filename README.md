@@ -1,5 +1,7 @@
 # CrewOS
 
+[![CI](https://github.com/contacthafagroup-beep/CrewOs/actions/workflows/ci.yml/badge.svg)](https://github.com/contacthafagroup-beep/CrewOs/actions/workflows/ci.yml)
+
 **Hire AI employees, not freelancers.** CrewOS is an AI workforce platform: companies subscribe and get AI agents that run sales outreach, content marketing, and client proposals — with a human approval queue before anything ships.
 
 Built to run on **free-tier infrastructure** until revenue exists: Next.js 15 + PostgreSQL (Neon free tier) + Vercel free tier + DB-backed queue (no Redis required at launch).

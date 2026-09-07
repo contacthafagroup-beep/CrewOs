@@ -15,7 +15,3 @@ next-env.d.ts
 Thumbs.db
 
 *.log
-
-# local provisioning artifacts (not part of the project)
-.mimosa/
-.v2c/
