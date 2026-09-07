@@ -23,17 +23,25 @@ export async function sendEmail(msg: EmailMessage): Promise<EmailResult> {
     return { delivered: false, provider: "console", detail: "RESEND_API_KEY not set — logged to console" };
   }
   const from = process.env.EMAIL_FROM || "CrewOS <onboarding@resend.dev>";
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify({ from, to: [msg.to], subject: msg.subject, html: msg.html }),
-  });
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300);
-    console.error("[email:resend] failed:", res.status, detail);
-    return { delivered: false, provider: "resend", detail };
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({ from, to: [msg.to], subject: msg.subject, html: msg.html }),
+    });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 300);
+      console.error("[email:resend] send failed (%s): %s — falling back to console log", res.status, detail);
+      console.log("[email:console] to=%s subject=%s\n%s", msg.to, msg.subject, msg.html);
+      return { delivered: false, provider: "console", detail };
+    }
+    return { delivered: true, provider: "resend" };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : "network error";
+    console.error("[email:resend] network failure: %s — falling back to console log", detail);
+    console.log("[email:console] to=%s subject=%s\n%s", msg.to, msg.subject, msg.html);
+    return { delivered: false, provider: "console", detail };
   }
-  return { delivered: true, provider: "resend" };
 }
 
 export function shellEmail(title: string, bodyHtml: string, cta?: { label: string; url: string }): string {
