@@ -1,0 +1,290 @@
+// CrewOS data model. PostgreSQL. Money in integer cents. Dates UTC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlanTier {
+  STARTER
+  GROWTH
+  SCALE
+  ENTERPRISE
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum RunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  REPLIED
+  WON
+  LOST
+}
+
+enum ContentType {
+  LINKEDIN
+  X_THREAD
+  BLOG_OUTLINE
+}
+
+enum ContentStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+enum DocType {
+  PROPOSAL
+  INVOICE
+}
+
+enum SubStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  name           String?
+  emailVerified  DateTime?
+  referredByCode String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  memberships    Membership[]
+  oauthAccounts  OAuthAccount[]
+
+  @@index([email])
+}
+
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model Workspace {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  plan             PlanTier  @default(STARTER)
+  brandName        String?
+  brandColor       String    @default("#10b981")
+  brandLogoUrl     String?
+  referralCode     String    @unique
+  creditCents      Int       @default(0)
+  stripeCustomerId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  memberships      Membership[]
+  runs             AgentRun[]
+  leads            Lead[]
+  contentItems     ContentItem[]
+  documents        Document[]
+  subscription     Subscription?
+  usageEvents      UsageEvent[]
+  jobs             Job[]
+  notifications    Notification[]
+  referralCredits  ReferralLedger[] @relation("creditRecipient")
+
+  @@index([slug])
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role      @default(OWNER)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model AgentRun {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  userId       String?
+  agent        String
+  status       RunStatus @default(QUEUED)
+  input        Json
+  output       Json?
+  error        String?
+  model        String?
+  tokensIn     Int      @default(0)
+  tokensOut    Int      @default(0)
+  estCostCents Int      @default(0)
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+  contentItems ContentItem[]
+  documents    Document[]
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, agent, status])
+}
+
+model Lead {
+  id           String     @id @default(cuid())
+  workspaceId  String
+  runId        String?
+  name         String
+  company      String
+  domain       String?
+  score        Int        @default(0)
+  scoreReasons String?
+  status       LeadStatus @default(NEW)
+  emails       Json?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  workspace    Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  run          AgentRun?  @relation(fields: [runId], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, score])
+}
+
+model ContentItem {
+  id          String        @id @default(cuid())
+  workspaceId String
+  runId       String?
+  type        ContentType
+  title       String
+  body        String        @db.Text
+  status      ContentStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  run         AgentRun?     @relation(fields: [runId], references: [id])
+
+  @@index([workspaceId, status])
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  workspaceId String
+  runId       String?
+  type        DocType
+  title       String
+  data        Json
+  html        String   @db.Text
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  run         AgentRun? @relation(fields: [runId], references: [id])
+
+  @@index([workspaceId, type])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  workspaceId          String    @unique
+  stripeSubscriptionId String    @unique
+  stripeCustomerId     String
+  plan                 PlanTier
+  status               SubStatus
+  priceId              String?
+  annual               Boolean   @default(false)
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model UsageEvent {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  userId       String?
+  runId        String?
+  agent        String
+  model        String
+  tokensIn     Int      @default(0)
+  tokensOut    Int      @default(0)
+  estCostCents Int      @default(0)
+  createdAt    DateTime @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+
+  @@index([status, runAt])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String?
+  title       String
+  body        String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, readAt])
+}
+
+model ReferralLedger {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  referredWorkspaceId String?
+  amountCents         Int
+  note                String?
+  createdAt           DateTime @default(now())
+  workspace           Workspace @relation("creditRecipient", fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}

@@ -1,0 +1,39 @@
+{
+  "name": "crewos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CrewOS — hire your first AI employee. AI workforce platform for SMBs.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "setup": "prisma db push && tsx prisma/seed.ts",
+    "seed": "tsx prisma/seed.ts",
+    "worker": "tsx worker.ts",
+    "smoke": "tsx scripts/smoke-ai.ts",
+    "test": "node --import tsx --test tests/plan-limits.test.ts tests/ai-json.test.ts tests/lead-score.test.ts tests/rate-limit.test.ts tests/referrals.test.ts tests/pricing-config.test.ts",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "framer-motion": "^12.0.0",
+    "jose": "^5.9.0",
+    "next": "^15.2.0",
+    "next-themes": "^0.4.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "stripe": "^17.5.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prisma": "^6.5.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

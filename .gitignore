@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+.env
+.env.local
+.env*.local
+
+*.tsbuildinfo
+next-env.d.ts
+
+.DS_Store
+Thumbs.db
+
+*.log
+
+# local provisioning artifacts (not part of the project)
+.mimosa/
+.v2c/

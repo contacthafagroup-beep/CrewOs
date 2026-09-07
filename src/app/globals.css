@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+::selection {
+  background: rgb(16 185 129 / 0.35);
+}
+
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+  }
+}
