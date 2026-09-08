@@ -3,7 +3,7 @@
 // Verifies: flowToken returned, approve marks flow, claim consumes ONCE and sets a
 // session cookie, second claim stays pending. Run while server on :3001.
 
-const BASE = "http://localhost:3001";
+const BASE = process.env.TEST_BASE || "http://localhost:3001";
 const EMAIL = `crossdevice-${Date.now()}@testdemo.co`;
 
 async function post(path: string, body: unknown, headers: Record<string, string> = {}) {
