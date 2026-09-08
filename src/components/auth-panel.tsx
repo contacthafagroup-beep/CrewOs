@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface AuthPanelProps {
   mode: "login" | "signup";
@@ -21,9 +21,42 @@ const ERRORS: Record<string, string> = {
 export function AuthPanel({ mode, demoEnabled, oauthGoogle, oauthMicrosoft, error }: AuthPanelProps) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [approved, setApproved] = useState(false);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(error ? (ERRORS[error] ?? error) : null);
   const [demoBusy, setDemoBusy] = useState(false);
+  const flowTokenRef = useRef<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
+  }, []);
+
+  function startPolling(flowToken: string, tries = 0) {
+    if (tries > 150) return; // ~7.5 min at 3s intervals, then give up
+    pollRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/magic-link/claim", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ flowToken }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { status: string };
+          if (data.status === "complete") {
+            setApproved(true);
+            window.location.href = "/app";
+            return;
+          }
+        }
+      } catch {
+        /* transient network error — keep polling */
+      }
+      startPolling(flowToken, tries + 1);
+    }, 3000);
+  }
 
   async function submitMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -35,9 +68,13 @@ export function AuthPanel({ mode, demoEnabled, oauthGoogle, oauthMicrosoft, erro
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      const data = (await res.json()) as { ok?: boolean; flowToken?: string; error?: string };
       if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
         setErr(data.error ?? "Something went wrong");
+      } else if (data.flowToken) {
+        flowTokenRef.current = data.flowToken;
+        setSent(true);
+        startPolling(data.flowToken);
       } else {
         setSent(true);
       }
@@ -78,12 +115,30 @@ export function AuthPanel({ mode, demoEnabled, oauthGoogle, oauthMicrosoft, erro
       {err && <div className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">{err}</div>}
 
       {sent ? (
-        <div className="mt-6 rounded-lg bg-emerald-500/10 p-4 text-sm">
-          <strong className="text-emerald-500">Check your inbox.</strong>
-          <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-            We sent a sign-in link to {email}. In local dev without an email key, the link is printed in the
-            server console.
-          </p>
+        <div
+          className="mt-6 rounded-lg p-4 text-sm"
+          style={{ background: approved ? "rgba(16,185,129,0.1)" : "rgba(56,189,248,0.08)" }}
+        >
+          {approved ? (
+            <>
+              <strong className="text-emerald-500">Approved — signing you in…</strong>
+            </>
+          ) : (
+            <>
+              <strong className="text-sky-400">📬 Check your email</strong>
+              <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+                We sent a confirmation link to <strong>{email}</strong>. Click it on <strong>any</strong> device —
+                this screen will detect it and sign you in automatically.
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+                <span
+                  className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500"
+                  aria-hidden
+                />
+                Waiting for approval…
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <form onSubmit={submitMagicLink} className="mt-6 space-y-4">

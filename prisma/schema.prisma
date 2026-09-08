@@ -102,6 +102,22 @@ model VerificationToken {
   @@id([identifier, token])
 }
 
+/// Cross-device magic-link flow (Slack/Notion pattern):
+/// the requesting device holds flowToken and polls; the device that opens
+/// the email link approves the flow; the poller consumes it once → session.
+model LoginFlow {
+  id         String    @id @default(cuid())
+  flowToken  String    @unique
+  identifier String
+  token      String    @unique
+  approvedAt DateTime?
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+}
+
 model Workspace {
   id               String    @id @default(cuid())
   name             String
